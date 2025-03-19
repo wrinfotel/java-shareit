@@ -30,7 +30,7 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
-    public ItemDto patchItem(Long userId, Long itemId, ItemDto itemDto) {
+    public ItemDto updateItem(Long userId, Long itemId, ItemDto itemDto) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
@@ -40,7 +40,7 @@ public class ItemServiceImpl implements ItemService {
         if (!oldItem.getOwner().equals(user)) {
             throw new NotFoundException("Item not found");
         }
-        return ItemMapper.toItemDto(itemRepository.patchItem(item, itemId));
+        return ItemMapper.toItemDto(itemRepository.updateItem(item, itemId));
     }
 
     @Override

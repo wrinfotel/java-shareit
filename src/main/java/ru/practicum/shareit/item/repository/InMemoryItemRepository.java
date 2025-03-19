@@ -22,7 +22,7 @@ public class InMemoryItemRepository implements ItemRepository {
     }
 
     @Override
-    public Item patchItem(Item item, Long itemId) {
+    public Item updateItem(Item item, Long itemId) {
         Item oldItem = items.get(itemId);
         if (item.getName() != null) {
             oldItem.setName(item.getName());

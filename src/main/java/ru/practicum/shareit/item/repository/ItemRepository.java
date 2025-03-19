@@ -9,7 +9,7 @@ import java.util.Optional;
 public interface ItemRepository {
     Item save(Item item);
 
-    Item patchItem(Item item, Long itemId);
+    Item updateItem(Item item, Long itemId);
 
     Optional<Item> findById(Long itemId);
 
