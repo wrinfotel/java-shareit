@@ -63,7 +63,7 @@ public class ItemServiceImpl implements ItemService {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
         ItemExtendedDto itemExtendedDto = ItemMapper.toItemExtendedDto(item);
-        if(Objects.equals(userId, item.getOwner().getId())) {
+        if (Objects.equals(userId, item.getOwner().getId())) {
             Sort prevSort = Sort.by("end").descending();
             Booking prevBooking = bookingRepository.findFirstByItemIdAndEndIsBeforeAndStatus(itemExtendedDto.getId(),
                     LocalDateTime.now(), BookingStatus.APPROVED, prevSort);
