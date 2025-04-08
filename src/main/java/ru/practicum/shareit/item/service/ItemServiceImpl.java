@@ -1,15 +1,25 @@
 package ru.practicum.shareit.item.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import ru.practicum.shareit.booking.Booking;
+import ru.practicum.shareit.booking.BookingStatus;
+import ru.practicum.shareit.booking.repository.BookingRepository;
+import ru.practicum.shareit.comment.*;
+import ru.practicum.shareit.exceptions.CommentConflictException;
 import ru.practicum.shareit.exceptions.NotFoundException;
 import ru.practicum.shareit.item.ItemMapper;
 import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.item.dto.ItemExtendedDto;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.item.repository.ItemRepository;
 import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.repository.UserRepository;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -20,13 +30,17 @@ public class ItemServiceImpl implements ItemService {
 
     private final UserRepository userRepository;
 
+    private final BookingRepository bookingRepository;
+
+    private final CommentRepository commentRepository;
+
     @Override
-    public ItemDto addNewItem(Long userId, Item item) {
+    public ItemDto addNewItem(Long userId, ItemDto item) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-
-        item.setOwner(user);
-        return ItemMapper.toItemDto(itemRepository.save(item));
+        Item newItem = ItemMapper.toItem(item);
+        newItem.setOwner(user);
+        return ItemMapper.toItemDto(itemRepository.save(newItem));
     }
 
     @Override
@@ -40,31 +54,94 @@ public class ItemServiceImpl implements ItemService {
         if (!oldItem.getOwner().equals(user)) {
             throw new NotFoundException("Item not found");
         }
-        return ItemMapper.toItemDto(itemRepository.updateItem(item, itemId));
+        return ItemMapper.toItemDto(itemRepository.save(updateItem(oldItem, item)));
     }
 
     @Override
-    public ItemDto getItemById(Long itemId) {
+    public ItemExtendedDto getItemById(Long itemId) {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
-        return ItemMapper.toItemDto(item);
+        ItemExtendedDto itemExtendedDto = ItemMapper.toItemExtendedDto(item);
+
+        List<Comment> comments = commentRepository.findAllByItemId(item.getId());
+        if (comments != null && !comments.isEmpty()) {
+            itemExtendedDto.setComments(comments);
+        }
+
+        return itemExtendedDto;
     }
 
     @Override
-    public List<ItemDto> getUserItems(Long userId) {
-        User user = userRepository.findById(userId)
+    public List<ItemExtendedDto> getUserItems(Long userId) {
+        userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-        return itemRepository.findAllByUser(user).stream()
-                .map(ItemMapper::toItemDto)
+        List<ItemExtendedDto> items = itemRepository.findAllByOwnerId(userId).stream()
+                .map(ItemMapper::toItemExtendedDto)
                 .toList();
+        for (ItemExtendedDto itemExtendedDto : items) {
+            Sort prevSort = Sort.by("end").descending();
+            Booking prevBooking = bookingRepository.findFirstByItemIdAndEndIsBeforeAndStatus(itemExtendedDto.getId(),
+                    LocalDateTime.now(), BookingStatus.APPROVED, prevSort);
+
+            if (prevBooking != null) {
+                itemExtendedDto.setLastBooking(prevBooking.getEnd());
+            }
+            Sort nextSort = Sort.by("start").ascending();
+            Booking nextBooking = bookingRepository.findFirstByItemIdAndStartIsAfterAndStatus(itemExtendedDto.getId(),
+                    LocalDateTime.now(), BookingStatus.APPROVED, nextSort);
+            if (nextBooking != null) {
+                itemExtendedDto.setNextBooking(nextBooking.getStart());
+            }
+            List<Comment> comments = commentRepository.findAllByItemId(itemExtendedDto.getId());
+            if (comments != null && !comments.isEmpty()) {
+                itemExtendedDto.setComments(comments);
+            }
+        }
+        return items;
     }
 
     @Override
     public List<ItemDto> search(Long userId, String text) {
+        if (text == null || text.isBlank()) {
+            return new ArrayList<>();
+        }
         userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         return itemRepository.findByQuery(text).stream()
                 .map(ItemMapper::toItemDto)
                 .toList();
+    }
+
+    private Item updateItem(Item oldItem, Item item) {
+        if (item.getName() != null) {
+            oldItem.setName(item.getName());
+        }
+        if (item.getDescription() != null) {
+            oldItem.setDescription(item.getDescription());
+        }
+        if (item.getAvailable() != null) {
+            oldItem.setAvailable(item.getAvailable());
+        }
+        return oldItem;
+    }
+
+    @Override
+    public CommentResponseDto addNewComment(Long itemId, Long userId, CommentDto comment) {
+        User author = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("author not found"));
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new NotFoundException("Item not found"));
+        Booking checkBooking = bookingRepository.findByBookerIdAndItemIdAndEndIsBeforeAndStatus(author.getId(),
+                item.getId(), LocalDateTime.now(), BookingStatus.APPROVED);
+        if (checkBooking != null) {
+            Comment newComment = Comment.builder()
+                    .author(author)
+                    .item(item)
+                    .text(comment.getText())
+                    .created(LocalDate.now())
+                    .build();
+            return CommentMapper.toCommentResponseDto(commentRepository.save(newComment));
+        }
+        throw new CommentConflictException("User can`t comment this item");
     }
 }
