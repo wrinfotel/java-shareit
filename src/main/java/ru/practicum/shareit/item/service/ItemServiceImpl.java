@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -58,10 +59,25 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
-    public ItemExtendedDto getItemById(Long itemId) {
+    public ItemExtendedDto getItemById(Long itemId, Long userId) {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
         ItemExtendedDto itemExtendedDto = ItemMapper.toItemExtendedDto(item);
+        if(Objects.equals(userId, item.getOwner().getId())) {
+            Sort prevSort = Sort.by("end").descending();
+            Booking prevBooking = bookingRepository.findFirstByItemIdAndEndIsBeforeAndStatus(itemExtendedDto.getId(),
+                    LocalDateTime.now(), BookingStatus.APPROVED, prevSort);
+
+            if (prevBooking != null) {
+                itemExtendedDto.setLastBooking(prevBooking.getEnd());
+            }
+            Sort nextSort = Sort.by("start").descending();
+            Booking nextBooking = bookingRepository.findFirstByItemIdAndStartIsAfterAndStatus(itemId,
+                    LocalDateTime.now(), BookingStatus.APPROVED, nextSort);
+            if (nextBooking != null) {
+                itemExtendedDto.setNextBooking(nextBooking.getStart());
+            }
+        }
 
         List<Comment> comments = commentRepository.findAllByItemId(item.getId());
         if (comments != null && !comments.isEmpty()) {
