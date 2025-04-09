@@ -96,15 +96,15 @@ public class ItemServiceImpl implements ItemService {
                 .map(ItemMapper::toItemExtendedDto)
                 .toList();
 
-        List<Long> ItemIds = items.stream().map(ItemExtendedDto::getId).toList();
+        List<Long> itemIds = items.stream().map(ItemExtendedDto::getId).toList();
         Sort prevSort = Sort.by("end").descending();
-        List<Booking> prevBookingList = bookingRepository.findAllByItemIdInAndEndIsBeforeAndStatus(ItemIds,
+        List<Booking> prevBookingList = bookingRepository.findAllByItemIdInAndEndIsBeforeAndStatus(itemIds,
                 LocalDateTime.now(), BookingStatus.APPROVED, prevSort);
 
         Sort nextSort = Sort.by("start").ascending();
-        List<Booking> nextBookingList = bookingRepository.findAllByItemIdInAndStartIsAfterAndStatus(ItemIds,
+        List<Booking> nextBookingList = bookingRepository.findAllByItemIdInAndStartIsAfterAndStatus(itemIds,
                 LocalDateTime.now(), BookingStatus.APPROVED, nextSort);
-        List<Comment> commentsList = commentRepository.findAllByItemIdIn(ItemIds);
+        List<Comment> commentsList = commentRepository.findAllByItemIdIn(itemIds);
         for (ItemExtendedDto itemExtendedDto : items) {
 
             Optional<Booking> prevBooking = prevBookingList.stream()
