@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -94,22 +95,27 @@ public class ItemServiceImpl implements ItemService {
         List<ItemExtendedDto> items = itemRepository.findAllByOwnerId(userId).stream()
                 .map(ItemMapper::toItemExtendedDto)
                 .toList();
-        for (ItemExtendedDto itemExtendedDto : items) {
-            Sort prevSort = Sort.by("end").descending();
-            Booking prevBooking = bookingRepository.findFirstByItemIdAndEndIsBeforeAndStatus(itemExtendedDto.getId(),
-                    LocalDateTime.now(), BookingStatus.APPROVED, prevSort);
 
-            if (prevBooking != null) {
-                itemExtendedDto.setLastBooking(prevBooking.getEnd());
-            }
-            Sort nextSort = Sort.by("start").ascending();
-            Booking nextBooking = bookingRepository.findFirstByItemIdAndStartIsAfterAndStatus(itemExtendedDto.getId(),
-                    LocalDateTime.now(), BookingStatus.APPROVED, nextSort);
-            if (nextBooking != null) {
-                itemExtendedDto.setNextBooking(nextBooking.getStart());
-            }
-            List<Comment> comments = commentRepository.findAllByItemId(itemExtendedDto.getId());
-            if (comments != null && !comments.isEmpty()) {
+        List<Long> ItemIds = items.stream().map(ItemExtendedDto::getId).toList();
+        Sort prevSort = Sort.by("end").descending();
+        List<Booking> prevBookingList = bookingRepository.findAllByItemIdInAndEndIsBeforeAndStatus(ItemIds,
+                LocalDateTime.now(), BookingStatus.APPROVED, prevSort);
+
+        Sort nextSort = Sort.by("start").ascending();
+        List<Booking> nextBookingList = bookingRepository.findAllByItemIdInAndStartIsAfterAndStatus(ItemIds,
+                LocalDateTime.now(), BookingStatus.APPROVED, nextSort);
+        List<Comment> commentsList = commentRepository.findAllByItemIdIn(ItemIds);
+        for (ItemExtendedDto itemExtendedDto : items) {
+
+            Optional<Booking> prevBooking = prevBookingList.stream()
+                    .filter(booking -> itemExtendedDto.getId().equals(booking.getItem().getId())).findFirst();
+            prevBooking.ifPresent(booking -> itemExtendedDto.setLastBooking(booking.getEnd()));
+            Optional<Booking> nextBooking = nextBookingList.stream()
+                    .filter(booking -> itemExtendedDto.getId().equals(booking.getItem().getId())).findFirst();
+            nextBooking.ifPresent(booking -> itemExtendedDto.setNextBooking(booking.getStart()));
+
+            List<Comment> comments = commentsList.stream().filter(comment -> itemExtendedDto.getId().equals(comment.getItem().getId())).toList();
+            if (!comments.isEmpty()) {
                 itemExtendedDto.setComments(comments);
             }
         }
