@@ -1,15 +1,21 @@
 package ru.practicum.shareit.item.model;
 
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.Builder;
-import lombok.Data;
-import ru.practicum.shareit.request.ItemRequest;
+import lombok.*;
 import ru.practicum.shareit.user.User;
 
-@Data
+@Getter
+@Setter
 @Builder
+@Entity
+@Table(name = "items")
+@NoArgsConstructor
+@AllArgsConstructor
 public class Item {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotNull
@@ -21,7 +27,10 @@ public class Item {
     private String description;
 
     @NotNull
+    @Column(name = "is_available")
     private Boolean available;
+
+    @ManyToOne
+    @JoinColumn(name = "owner_id")
     private User owner;
-    private ItemRequest request;
 }

@@ -11,6 +11,7 @@ import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.repository.UserRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -38,31 +39,41 @@ public class UserServiceImpl implements UserService {
         if (checkUser) {
             throw new ConflictException("Этот имейл уже используется");
         }
-        User createdUser = userRepository.create(user);
+        User createdUser = userRepository.save(user);
         return UserMapper.toUserDto(createdUser);
     }
 
     @Override
-    public UserDto update(UserDto user, Long userId) {
+    public UserDto update(UserDto userDto, Long userId) {
         if (userId == null) {
             throw new ValidationException("Id должен быть указан");
         }
-        if (user.getEmail() != null) {
-            boolean checkUser = getAllUsers().stream().anyMatch(user1 -> user1.getEmail().equals(user.getEmail()));
+        if (userDto.getEmail() != null) {
+            boolean checkUser = getAllUsers().stream().anyMatch(user1 -> user1.getEmail().equals(userDto.getEmail()));
             if (checkUser) {
                 throw new ConflictException("Этот имейл уже используется");
             }
         }
         User oldUser = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("user not found"));
-        user.setId(oldUser.getId());
-        User updatedUser = userRepository.update(user);
+        User user = UserMapper.toUser(userDto);
+        User updatedUser = userRepository.save(updateUserFields(oldUser, user));
         return UserMapper.toUserDto(updatedUser);
     }
 
     @Override
     public void delete(Long userId) {
-        getById(userId);
-        userRepository.delete(userId);
+        Optional<User> user = userRepository.findById(userId);
+        user.ifPresent(userRepository::delete);
+    }
+
+    private User updateUserFields(User oldUser, User user) {
+        if (user.getEmail() != null) {
+            oldUser.setEmail(user.getEmail());
+        }
+        if (user.getName() != null) {
+            oldUser.setName(user.getName());
+        }
+        return oldUser;
     }
 }
