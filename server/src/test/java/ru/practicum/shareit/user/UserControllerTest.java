@@ -4,14 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.service.UserService;
 
@@ -25,13 +25,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(UserController.class)
 class UserControllerTest {
-    @Mock
+    @MockBean
     private UserService userService;
-
-    @InjectMocks
-    private UserController controller;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -40,9 +37,9 @@ class UserControllerTest {
     private UserDto userDto;
 
     @BeforeEach
-    void setUp() {
+    void setUp(WebApplicationContext wac) {
         mvc = MockMvcBuilders
-                .standaloneSetup(controller)
+                .webAppContextSetup(wac)
                 .build();
 
         userDto = UserDto.builder()
@@ -122,5 +119,19 @@ class UserControllerTest {
 
         Assertions.assertEquals(mapper.writeValueAsString(List.of(userDto)),
                 result.getResponse().getContentAsString());
+    }
+
+    @Test
+    void saveNewUserWithException() throws Exception {
+        when(userService.create(any()))
+                .thenThrow(IllegalArgumentException.class);
+
+        mvc.perform(post("/users")
+                        .content(mapper.writeValueAsString(userDto))
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(status().is(500));
     }
 }

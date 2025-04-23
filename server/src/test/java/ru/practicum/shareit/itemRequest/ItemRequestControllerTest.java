@@ -5,14 +5,14 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
+import ru.practicum.shareit.exceptions.NotFoundException;
 import ru.practicum.shareit.request.ItemRequestController;
 import ru.practicum.shareit.request.dto.ItemRequestCreateDto;
 import ru.practicum.shareit.request.dto.ItemRequestDto;
@@ -20,7 +20,6 @@ import ru.practicum.shareit.request.dto.ItemRequestExtendedDto;
 import ru.practicum.shareit.request.service.ItemRequestService;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,16 +31,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(ItemRequestController.class)
 public class ItemRequestControllerTest {
-    @Mock
+    @MockBean
     private ItemRequestService itemRequestService;
 
-    @InjectMocks
-    private ItemRequestController controller;
 
     private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+    @Autowired
     private MockMvc mvc;
 
     private ItemRequestDto itemRequestDto;
@@ -50,22 +48,16 @@ public class ItemRequestControllerTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders
-                .standaloneSetup(controller)
-                .build();
-
         itemRequestDto = ItemRequestDto.builder()
                 .id(1L)
                 .requestorId(1L)
                 .description("Test description")
-                .created(LocalDateTime.now())
                 .build();
 
         itemRequestExtendedDto = ItemRequestExtendedDto.builder()
                 .id(1L)
                 .requestorId(1L)
                 .description("Test description")
-                .created(LocalDateTime.now())
                 .items(Collections.emptyList())
                 .build();
     }
@@ -138,5 +130,21 @@ public class ItemRequestControllerTest {
 
         Assertions.assertEquals(mapper.writeValueAsString(itemRequestExtendedDto),
                 result.getResponse().getContentAsString());
+    }
+
+    @Test
+    void saveNewItemRequestWithException() throws Exception {
+        when(itemRequestService.createNewItemRequest(any(), any()))
+                .thenThrow(NotFoundException.class);
+        ItemRequestCreateDto itemRequestCreateDto = new ItemRequestCreateDto();
+        itemRequestCreateDto.setDescription("Test description");
+        mvc.perform(post("/requests")
+                        .content(mapper.writeValueAsString(itemRequestCreateDto))
+                        .header("X-Sharer-User-Id", 1L)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(status().is(404));
     }
 }
